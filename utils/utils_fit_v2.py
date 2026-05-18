@@ -1,7 +1,7 @@
 import os
 
 import torch
-from nets.unet_training import CE_Loss, Dice_loss, Focal_Loss
+from nets.pspnet_training import CE_Loss, Dice_loss, Focal_Loss
 from tqdm import tqdm
 
 from utils.utils import get_lr
