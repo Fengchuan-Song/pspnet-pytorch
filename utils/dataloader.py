@@ -24,13 +24,13 @@ class PSPnetDataset(Dataset):
 
     def __getitem__(self, index):
         annotation_line = self.annotation_lines[index]
-        name            = annotation_line.split()[0]
+        name            = annotation_line.split('.')[0]
 
         #-------------------------------#
         #   从文件中读取图像
         #-------------------------------#
-        jpg         = Image.open(os.path.join(os.path.join(self.dataset_path, "VOC2007/JPEGImages"), name + ".jpg"))
-        png         = Image.open(os.path.join(os.path.join(self.dataset_path, "VOC2007/SegmentationClass"), name + ".png"))
+        jpg         = Image.open(os.path.join(os.path.join(self.dataset_path, "images"), name + ".jpg"))
+        png         = Image.open(os.path.join(os.path.join(self.dataset_path, "semantic/SegmentationClass"), name + ".png"))
         #-------------------------------#
         #   数据增强
         #-------------------------------#
