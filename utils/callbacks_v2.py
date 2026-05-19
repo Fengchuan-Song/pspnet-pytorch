@@ -181,7 +181,7 @@ class EvalCallback():
     def _save_remapped_miou_pngs(self, gt_dir, pred_dir, object_gt_dir, object_pred_dir,
                                  driverable_area_gt_dir, driverable_area_pred_dir):
         for image_id in self.image_ids:
-            gt = np.array(Image.open(os.path.join(gt_dir, image_id + ".png")))
+            gt = np.array(Image.open(os.path.join(gt_dir, 'semantic/SegmentationClass/' + image_id + ".png")))
             pred = np.array(Image.open(os.path.join(pred_dir, image_id + ".png")))
 
             object_gt = self._remap_object_segmentation(gt)
