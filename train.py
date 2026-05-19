@@ -96,6 +96,16 @@ if __name__ == "__main__":
     #                   自己需要的分类个数+1，如2+1
     #-----------------------------------------------------#
     num_classes     = 9
+    #-----------------------------------------------------#
+    #   多任务训练：
+    #   目标分割头：background + 7类目标
+    #   水岸线分割头：background + waterline
+    #   目标标注读取 semantic/SegmentationClass，水岸线标注读取 waterline/SegmentationClass。
+    #-----------------------------------------------------#
+    multi_task              = True
+    object_num_classes      = 8
+    shoreline_num_classes   = 2
+    shoreline_loss_weight   = 1.0
     #-------------------------------#
     #   主干网络选择
     #   mobilenet、resnet50
@@ -268,6 +278,8 @@ if __name__ == "__main__":
     #   cls_weights = np.array([1, 2, 3], np.float32)
     #------------------------------------------------------------------#
     cls_weights     = np.ones([num_classes], np.float32)
+    object_cls_weights = np.ones([object_num_classes], np.float32)
+    shoreline_cls_weights = np.ones([shoreline_num_classes], np.float32)
     #------------------------------------------------------#
     #   是否使用辅助分支
     #   会占用大量显存
@@ -321,7 +333,9 @@ if __name__ == "__main__":
         else:
             download_weights(backbone)
 
-    model = PSPNet(num_classes=num_classes, backbone=backbone, downsample_factor=downsample_factor, pretrained=pretrained, aux_branch=aux_branch)
+    model = PSPNet(num_classes=num_classes, backbone=backbone, downsample_factor=downsample_factor,
+                   pretrained=pretrained, aux_branch=aux_branch, multi_task=multi_task,
+                   object_num_classes=object_num_classes, shoreline_num_classes=shoreline_num_classes)
     if not pretrained:
         weights_init(model)
     if model_path != '':
@@ -480,8 +494,12 @@ if __name__ == "__main__":
         if epoch_step == 0 or epoch_step_val == 0:
             raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")
 
-        train_dataset   = PSPnetDataset(train_lines, input_shape, num_classes, True, VOCdevkit_path)
-        val_dataset     = PSPnetDataset(val_lines, input_shape, num_classes, False, VOCdevkit_path)
+        train_dataset   = PSPnetDataset(train_lines, input_shape, num_classes, False, VOCdevkit_path,
+                                        multi_task=multi_task, object_num_classes=object_num_classes,
+                                        shoreline_num_classes=shoreline_num_classes)
+        val_dataset     = PSPnetDataset(val_lines, input_shape, num_classes, False, VOCdevkit_path,
+                                        multi_task=multi_task, object_num_classes=object_num_classes,
+                                        shoreline_num_classes=shoreline_num_classes)
         
         if distributed:
             train_sampler   = torch.utils.data.distributed.DistributedSampler(train_dataset, shuffle=True,)
@@ -561,7 +579,10 @@ if __name__ == "__main__":
 
             fit_one_epoch(model_train, model, loss_history, eval_callback, optimizer, epoch, 
                 epoch_step, epoch_step_val, gen, gen_val, UnFreeze_Epoch, Cuda, dice_loss, focal_loss, cls_weights, num_classes, fp16, scaler, save_period, save_dir, local_rank,
-                weight_save_dir=weight_save_dir)
+                weight_save_dir=weight_save_dir, multi_task=multi_task,
+                object_num_classes=object_num_classes, shoreline_num_classes=shoreline_num_classes,
+                object_cls_weights=object_cls_weights, shoreline_cls_weights=shoreline_cls_weights,
+                shoreline_loss_weight=shoreline_loss_weight)
                   
             if distributed:
                 dist.barrier()

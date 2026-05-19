@@ -138,9 +138,13 @@ class _PSPModule(nn.Module):
 
 
 class PSPNet(nn.Module):
-    def __init__(self, num_classes, downsample_factor, backbone="resnet50", pretrained=True, aux_branch=True):
+    def __init__(self, num_classes, downsample_factor, backbone="resnet50", pretrained=True, aux_branch=True,
+                 multi_task=False, object_num_classes=None, shoreline_num_classes=None):
         super(PSPNet, self).__init__()
         norm_layer = nn.BatchNorm2d
+        self.multi_task = multi_task
+        self.object_num_classes = object_num_classes if object_num_classes is not None else num_classes
+        self.shoreline_num_classes = shoreline_num_classes
         if backbone=="resnet50":
             self.backbone = Resnet(downsample_factor, pretrained)
             aux_channel = 1024
@@ -162,12 +166,20 @@ class PSPNet(nn.Module):
         #   分别分割成1x1的区域，2x2的区域，3x3的区域，6x6的区域
         #   30,30,320 -> 30,30,80 -> 30,30,21
         #--------------------------------------------------------------#
-        self.master_branch = nn.Sequential(
-            _PSPModule(out_channel, pool_sizes=[1, 2, 3, 6], norm_layer=norm_layer),
-            nn.Conv2d(out_channel//4, num_classes, kernel_size=1)
-        )
+        if self.multi_task:
+            if self.shoreline_num_classes is None:
+                raise ValueError("shoreline_num_classes must be set when multi_task=True.")
 
-        self.aux_branch = aux_branch
+            self.psp = _PSPModule(out_channel, pool_sizes=[1, 2, 3, 6], norm_layer=norm_layer)
+            self.object_head = nn.Conv2d(out_channel//4, self.object_num_classes, kernel_size=1)
+            self.shoreline_head = nn.Conv2d(out_channel//4, self.shoreline_num_classes, kernel_size=1)
+        else:
+            self.master_branch = nn.Sequential(
+                _PSPModule(out_channel, pool_sizes=[1, 2, 3, 6], norm_layer=norm_layer),
+                nn.Conv2d(out_channel//4, num_classes, kernel_size=1)
+            )
+
+        self.aux_branch = aux_branch and not self.multi_task
 
         if self.aux_branch:
             #---------------------------------------------------#
@@ -182,11 +194,22 @@ class PSPNet(nn.Module):
                 nn.Conv2d(out_channel//8, num_classes, kernel_size=1)
             )
 
-        self.initialize_weights(self.master_branch)
+        if self.multi_task:
+            self.initialize_weights(self.psp, self.object_head, self.shoreline_head)
+        else:
+            self.initialize_weights(self.master_branch)
 
     def forward(self, x):
         input_size = (x.size()[2], x.size()[3])
         x_aux, x = self.backbone(x)
+        if self.multi_task:
+            features = self.psp(x)
+            object_output = self.object_head(features)
+            shoreline_output = self.shoreline_head(features)
+            object_output = F.interpolate(object_output, size=input_size, mode='bilinear', align_corners=True)
+            shoreline_output = F.interpolate(shoreline_output, size=input_size, mode='bilinear', align_corners=True)
+            return object_output, shoreline_output
+
         output = self.master_branch(x)
         output = F.interpolate(output, size=input_size, mode='bilinear', align_corners=True)
         if self.aux_branch:

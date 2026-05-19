@@ -10,7 +10,8 @@ from utils.utils import cvtColor, preprocess_input
 
 
 class PSPnetDataset(Dataset):
-    def __init__(self, annotation_lines, input_shape, num_classes, train, dataset_path):
+    def __init__(self, annotation_lines, input_shape, num_classes, train, dataset_path,
+                 multi_task=False, object_num_classes=8, shoreline_num_classes=2):
         super(PSPnetDataset, self).__init__()
         self.annotation_lines   = annotation_lines
         self.length             = len(annotation_lines)
@@ -18,6 +19,9 @@ class PSPnetDataset(Dataset):
         self.num_classes        = num_classes
         self.train              = train
         self.dataset_path       = dataset_path
+        self.multi_task         = multi_task
+        self.object_num_classes = object_num_classes
+        self.shoreline_num_classes = shoreline_num_classes
 
     def __len__(self):
         return self.length
@@ -31,13 +35,33 @@ class PSPnetDataset(Dataset):
         #-------------------------------#
         jpg         = Image.open(os.path.join(os.path.join(self.dataset_path, "images"), name + ".jpg"))
         png         = Image.open(os.path.join(os.path.join(self.dataset_path, "semantic/SegmentationClass"), name + ".png"))
+        if self.multi_task:
+            shoreline_png = Image.open(os.path.join(os.path.join(self.dataset_path, "waterline/SegmentationClass"), name + ".png"))
         #-------------------------------#
         #   数据增强
         #-------------------------------#
-        jpg, png    = self.get_random_data(jpg, png, self.input_shape, random = self.train)
+        if self.multi_task:
+            jpg, png, shoreline_png = self.get_random_data(jpg, [png, shoreline_png], self.input_shape, random = self.train)
+        else:
+            jpg, png = self.get_random_data(jpg, png, self.input_shape, random = self.train)
 
         jpg         = np.transpose(preprocess_input(np.array(jpg, np.float64)), [2, 0, 1])
         png         = np.array(png)
+
+        if self.multi_task:
+            object_png = png.copy()
+            object_png[object_png >= self.object_num_classes] = self.object_num_classes
+
+            shoreline_png = np.array(shoreline_png)
+            if self.shoreline_num_classes == 2 and shoreline_png.max() > 1:
+                shoreline_png = (shoreline_png > 0).astype(np.uint8)
+            shoreline_png[shoreline_png >= self.shoreline_num_classes] = self.shoreline_num_classes
+
+            object_labels = self._one_hot_label(object_png, self.object_num_classes)
+            shoreline_labels = self._one_hot_label(shoreline_png, self.shoreline_num_classes)
+
+            return jpg, object_png, object_labels, shoreline_png, shoreline_labels
+
         png[png >= self.num_classes] = self.num_classes
         #-------------------------------------------------------#
         #   转化成one_hot的形式
@@ -49,12 +73,19 @@ class PSPnetDataset(Dataset):
 
         return jpg, png, seg_labels
 
+    def _one_hot_label(self, png, num_classes):
+        seg_labels = np.eye(num_classes + 1)[png.reshape([-1])]
+        seg_labels = seg_labels.reshape((int(self.input_shape[1]), int(self.input_shape[0]), num_classes + 1))
+        return seg_labels
+
     def rand(self, a=0, b=1):
         return np.random.rand() * (b - a) + a
 
     def get_random_data(self, image, label, input_shape, jitter=.3, hue=.1, sat=0.7, val=0.3, random=True):
         image   = cvtColor(image)
-        label   = Image.fromarray(np.array(label))
+        single_label = not isinstance(label, (list, tuple))
+        labels = [label] if single_label else list(label)
+        labels = [Image.fromarray(np.array(temp_label)).convert("L") for temp_label in labels]
         #------------------------------#
         #   获得图像的高宽与目标高宽
         #------------------------------#
@@ -71,10 +102,13 @@ class PSPnetDataset(Dataset):
             new_image   = Image.new('RGB', [w, h], (128,128,128))
             new_image.paste(image, ((w-nw)//2, (h-nh)//2))
 
-            label       = label.resize((nw,nh), Image.NEAREST)
-            new_label   = Image.new('L', [w, h], (0))
-            new_label.paste(label, ((w-nw)//2, (h-nh)//2))
-            return new_image, new_label
+            new_labels = []
+            for temp_label in labels:
+                temp_label = temp_label.resize((nw,nh), Image.NEAREST)
+                new_label = Image.new('L', [w, h], (0))
+                new_label.paste(temp_label, ((w-nw)//2, (h-nh)//2))
+                new_labels.append(new_label)
+            return (new_image, new_labels[0]) if single_label else tuple([new_image] + new_labels)
 
         #------------------------------------------#
         #   对图像进行缩放并且进行长和宽的扭曲
@@ -88,7 +122,7 @@ class PSPnetDataset(Dataset):
             nw = int(scale*w)
             nh = int(nw/new_ar)
         image = image.resize((nw,nh), Image.BICUBIC)
-        label = label.resize((nw,nh), Image.NEAREST)
+        labels = [temp_label.resize((nw,nh), Image.NEAREST) for temp_label in labels]
         
         #------------------------------------------#
         #   翻转图像
@@ -96,7 +130,7 @@ class PSPnetDataset(Dataset):
         flip = self.rand()<.5
         if flip: 
             image = image.transpose(Image.FLIP_LEFT_RIGHT)
-            label = label.transpose(Image.FLIP_LEFT_RIGHT)
+            labels = [temp_label.transpose(Image.FLIP_LEFT_RIGHT) for temp_label in labels]
         
         #------------------------------------------#
         #   将图像多余的部分加上灰条
@@ -104,11 +138,14 @@ class PSPnetDataset(Dataset):
         dx = int(self.rand(0, w-nw))
         dy = int(self.rand(0, h-nh))
         new_image = Image.new('RGB', (w,h), (128,128,128))
-        new_label = Image.new('L', (w,h), (0))
         new_image.paste(image, (dx, dy))
-        new_label.paste(label, (dx, dy))
+        new_labels = []
+        for temp_label in labels:
+            new_label = Image.new('L', (w,h), (0))
+            new_label.paste(temp_label, (dx, dy))
+            new_labels.append(new_label)
         image = new_image
-        label = new_label
+        labels = new_labels
 
         image_data      = np.array(image, np.uint8)
 
@@ -128,7 +165,10 @@ class PSPnetDataset(Dataset):
             rotation    = np.random.randint(-10, 11)
             M           = cv2.getRotationMatrix2D(center, -rotation, scale=1)
             image_data  = cv2.warpAffine(image_data, M, (w, h), flags=cv2.INTER_CUBIC, borderValue=(128,128,128))
-            label       = cv2.warpAffine(np.array(label, np.uint8), M, (w, h), flags=cv2.INTER_NEAREST, borderValue=(0))
+            labels      = [
+                cv2.warpAffine(np.array(temp_label, np.uint8), M, (w, h), flags=cv2.INTER_NEAREST, borderValue=(0))
+                for temp_label in labels
+            ]
 
         #---------------------------------#
         #   对图像进行色域变换
@@ -151,10 +191,30 @@ class PSPnetDataset(Dataset):
         image_data = cv2.merge((cv2.LUT(hue, lut_hue), cv2.LUT(sat, lut_sat), cv2.LUT(val, lut_val)))
         image_data = cv2.cvtColor(image_data, cv2.COLOR_HSV2RGB)
         
-        return image_data, label
+        return (image_data, labels[0]) if single_label else tuple([image_data] + labels)
 
 # DataLoader中collate_fn使用
 def pspnet_dataset_collate(batch):
+    if len(batch[0]) == 5:
+        images              = []
+        object_pngs         = []
+        object_seg_labels   = []
+        shoreline_pngs      = []
+        shoreline_seg_labels = []
+        for img, object_png, object_labels, shoreline_png, shoreline_labels in batch:
+            images.append(img)
+            object_pngs.append(object_png)
+            object_seg_labels.append(object_labels)
+            shoreline_pngs.append(shoreline_png)
+            shoreline_seg_labels.append(shoreline_labels)
+
+        images              = torch.from_numpy(np.array(images)).type(torch.FloatTensor)
+        object_pngs         = torch.from_numpy(np.array(object_pngs)).long()
+        object_seg_labels   = torch.from_numpy(np.array(object_seg_labels)).type(torch.FloatTensor)
+        shoreline_pngs      = torch.from_numpy(np.array(shoreline_pngs)).long()
+        shoreline_seg_labels = torch.from_numpy(np.array(shoreline_seg_labels)).type(torch.FloatTensor)
+        return images, object_pngs, object_seg_labels, shoreline_pngs, shoreline_seg_labels
+
     images      = []
     pngs        = []
     seg_labels  = []
