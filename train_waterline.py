@@ -265,11 +265,11 @@ if __name__ == "__main__":
     #   种类多（十几类）时，如果batch_size比较大（10以上），那么设置为True
     #   种类多（十几类）时，如果batch_size比较小（10以下），那么设置为False
     #------------------------------------------------------------------#
-    dice_loss       = False
+    dice_loss       = True
     #------------------------------------------------------------------#
     #   是否使用focal loss来防止正负样本不平衡
     #------------------------------------------------------------------#
-    focal_loss      = False
+    focal_loss      = True
     #------------------------------------------------------------------#
     #   是否给不同种类赋予不同的损失权值，默认是平衡的。
     #   设置的话，注意设置成numpy形式的，长度和num_classes一样。
@@ -277,7 +277,7 @@ if __name__ == "__main__":
     #   num_classes = 3
     #   cls_weights = np.array([1, 2, 3], np.float32)
     #------------------------------------------------------------------#
-    cls_weights     = np.ones([num_classes], np.float32)
+    cls_weights     = np.array([1.0, 10.0], np.float32)
     object_cls_weights = np.ones([object_num_classes], np.float32)
     shoreline_cls_weights = np.ones([shoreline_num_classes], np.float32)
     #------------------------------------------------------#
