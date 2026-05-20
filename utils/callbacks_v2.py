@@ -296,5 +296,8 @@ class EvalCallback():
             plt.cla()
             plt.close("all")
 
-            print("Get miou of semantic segmentation done.")
+            if self.remap_mode == "waterline":
+                print("Get miou of waterline segmentation done.")
+            else:
+                print("Get miou of semantic segmentation done.")
             shutil.rmtree(self.miou_out_path)
