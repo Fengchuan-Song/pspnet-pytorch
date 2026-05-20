@@ -281,17 +281,6 @@ if __name__ == "__main__":
     #------------------------------------------------------------------#
     num_workers         = 4
 
-    wandb.init(
-        project='Achelous++',
-        name=args.wandb_name,
-        dir=args.wandb_path,
-        config={
-            "model_description": args.description,
-            "architecture": "Origin",
-            "dataset": "WaterSence",
-        }
-    )
-
     seed_everything(seed)
     #------------------------------------------------------#
     #   设置用到的显卡
