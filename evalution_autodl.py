@@ -231,7 +231,7 @@ if __name__ == "__main__":
     #------------------------------------------------------------------#
     #   save_dir        权值与日志文件保存的文件夹
     #------------------------------------------------------------------#
-    save_dir            = '/data/PSPNet'
+    save_dir            = '/root/autodl-tmp/PSPNet_waterline'
     weight_save_dir = os.path.join(os.path.join(args.save_dir, args.wandb_name), 'weights')
     if not os.path.exists(weight_save_dir):
         os.makedirs(weight_save_dir)
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     #------------------------------------------------------------------#
     #   VOCdevkit_path  数据集路径
     #------------------------------------------------------------------#
-    VOCdevkit_path  = '/data_ssd/datasets/WaterScenes'
+    VOCdevkit_path  = '/root/autodl-tmp/WaterScenes'
     #------------------------------------------------------------------#
     #   建议选项：
     #   种类少（几类）时，设置为True
@@ -281,17 +281,6 @@ if __name__ == "__main__":
     #                   在IO为瓶颈的时候再开启多线程，即GPU运算速度远大于读取图片的速度。
     #------------------------------------------------------------------#
     num_workers         = 4
-
-    wandb.init(
-        project='Achelous++',
-        name=args.wandb_name,
-        dir=args.wandb_path,
-        config={
-            "model_description": args.description,
-            "architecture": "Origin",
-            "dataset": "WaterSence",
-        }
-    )
 
     seed_everything(seed)
     #------------------------------------------------------#
