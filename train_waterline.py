@@ -44,7 +44,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--save_dir", type=str, default='/data/PSPNet_wawterline')
     parser.add_argument('--wandb_path', type=str, default='/data/PSPNet_wawterline/wandb', help='path of saving wandb files locally')
-    parser.add_argument('--wandb_name', type=str, default='PSPNet_wawterline',
+    parser.add_argument('--wandb_name', type=str, default='PSPNet_wawterline-2',
                         help='name of current training procedure of wandb')
     parser.add_argument('--description', type=str, default=
                         'Achelous++ with uncertainty aware cross attention for fusion(vision only), ' \
