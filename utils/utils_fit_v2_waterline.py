@@ -252,9 +252,10 @@ def fit_one_epoch(model_train, model, loss_history, eval_callback, optimizer, ep
         print('Finish Validation')
         loss_history.append_miou(val_miou / epoch_step_val)
         # loss_history.append_loss(epoch + 1, total_loss/ epoch_step, val_loss/ epoch_step_val)
-        # eval_callback.on_epoch_end(epoch + 1, model_train)
         print('Epoch:'+ str(epoch+1) + '/' + str(Epoch))
         print('Total Loss: %.3f || Val Loss: %.3f ' % (total_loss / epoch_step, val_loss / epoch_step_val))
+        if eval_callback is not None:
+            eval_callback.on_epoch_end(epoch + 1, model_train)
         log_dict = {
             'epoch': epoch,
             'se seg loss': total_loss / epoch_step,

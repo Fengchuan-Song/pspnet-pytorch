@@ -407,7 +407,10 @@ if __name__ == "__main__":
     #----------------------#
     if local_rank == 0:
         eval_callback   = EvalCallback(net=model, input_shape=input_shape, num_classes=num_classes, image_ids=val_lines, dataset_path=VOCdevkit_path,
-                                        log_dir=log_dir, cuda=Cuda, train_name=args.wandb_name, eval_flag=eval_flag, period=eval_period, local_rank=local_rank)
+                                        log_dir=log_dir, cuda=Cuda, train_name=args.wandb_name, eval_flag=eval_flag, period=eval_period, local_rank=local_rank,
+                                        class_names=["background", "free-space"],
+                                        gt_segmentation_path="waterline/SegmentationClass",
+                                        remap_mode="waterline")
     else:
         eval_callback   = None
         

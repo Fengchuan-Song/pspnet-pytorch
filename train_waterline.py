@@ -494,7 +494,7 @@ if __name__ == "__main__":
         if epoch_step == 0 or epoch_step_val == 0:
             raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")
 
-        train_dataset   = PSPnetDataset(train_lines, input_shape, num_classes, False, VOCdevkit_path,
+        train_dataset   = PSPnetDataset(train_lines, input_shape, num_classes, True, VOCdevkit_path,
                                         multi_task=multi_task, object_num_classes=object_num_classes,
                                         shoreline_num_classes=shoreline_num_classes)
         val_dataset     = PSPnetDataset(val_lines, input_shape, num_classes, False, VOCdevkit_path,
@@ -523,7 +523,10 @@ if __name__ == "__main__":
         #----------------------#
         if local_rank == 0:
             eval_callback   = EvalCallback(net=model, input_shape=input_shape, num_classes=num_classes, image_ids=val_lines, dataset_path=VOCdevkit_path,
-                                           log_dir=log_dir, cuda=Cuda, train_name=args.wandb_name, eval_flag=eval_flag, period=eval_period, local_rank=local_rank)
+                                           log_dir=log_dir, cuda=Cuda, train_name=args.wandb_name, eval_flag=eval_flag, period=eval_period, local_rank=local_rank,
+                                           class_names=["background", "free-space"],
+                                           gt_segmentation_path="waterline/SegmentationClass",
+                                           remap_mode="waterline")
         else:
             eval_callback   = None
         

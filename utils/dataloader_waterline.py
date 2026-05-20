@@ -19,6 +19,7 @@ class PSPnetDataset(Dataset):
         self.num_classes        = num_classes
         self.train              = train
         self.dataset_path       = dataset_path
+        self.multi_task         = multi_task
         self.object_num_classes = object_num_classes
         self.shoreline_num_classes = shoreline_num_classes
 
@@ -26,8 +27,8 @@ class PSPnetDataset(Dataset):
         return self.length
 
     def __getitem__(self, index):
-        annotation_line = self.annotation_lines[index]
-        name            = annotation_line.split('.')[0]
+        annotation_line = self.annotation_lines[index].strip()
+        name            = os.path.splitext(os.path.basename(annotation_line.split()[0]))[0]
 
         #-------------------------------#
         #   从文件中读取图像
@@ -42,6 +43,8 @@ class PSPnetDataset(Dataset):
         jpg         = np.transpose(preprocess_input(np.array(jpg, np.float64)), [2, 0, 1])
         png         = np.array(png)
 
+        if self.num_classes == 2 and png.max() > 1:
+            png = (png > 0).astype(np.uint8)
         png[png >= self.num_classes] = self.num_classes
         #-------------------------------------------------------#
         #   转化成one_hot的形式

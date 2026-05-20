@@ -94,7 +94,9 @@ class LossHistory():
 
 class EvalCallback():
     def __init__(self, net, input_shape, num_classes, image_ids, dataset_path, log_dir, cuda,
-                 local_rank, train_name, miou_out_path=".temp_miou_out", eval_flag=True, period=1):
+                 local_rank, train_name, miou_out_path=".temp_miou_out", eval_flag=True, period=1,
+                 class_names=None, gt_segmentation_path="semantic/SegmentationClass",
+                 remap_mode="semantic"):
         super(EvalCallback, self).__init__()
 
         self.net = net
@@ -108,9 +110,13 @@ class EvalCallback():
         self.eval_flag = eval_flag
         self.period = period
         self.local_rank = local_rank
+        self.gt_segmentation_path = gt_segmentation_path
+        self.remap_mode = remap_mode
         self.class_name = ["background", "pier", "buoy", "sailor", "ship", "boat", "vessel", "kayak", "free-space"]
         self.object_class_name = ["background", "pier", "buoy", "sailor", "ship", "boat", "vessel", "kayak"]
         self.driverable_area_class_name = ["background", "free-space"]
+        if class_names is not None:
+            self.class_name = class_names
 
         self.image_ids = [os.path.splitext(image_id.split('/')[-1].split(' ')[0])[0]for image_id in image_ids]
 
@@ -222,42 +228,57 @@ class EvalCallback():
                 image.save(os.path.join(pred_dir, image_id + ".png"))
 
             print("Calculate miou.")
-            self._save_remapped_miou_pngs(
-                gt_dir, pred_dir, object_gt_dir, object_pred_dir,
-                driverable_area_gt_dir, driverable_area_pred_dir
-            )
-            _, object_IoUs, _, _ = compute_mIoU(
-                object_gt_dir, object_pred_dir, self.image_ids,
-                len(self.object_class_name), self.object_class_name
-            )
-            _, driverable_area_IoUs, _, _ = compute_mIoU(
-                driverable_area_gt_dir, driverable_area_pred_dir, self.image_ids,
-                len(self.driverable_area_class_name), self.driverable_area_class_name
-            )
-            miou_object = np.nanmean(object_IoUs) * 100
-            miou_driverable_area = np.nanmean(driverable_area_IoUs) * 100
-            temp_miou = np.nanmean([miou_object, miou_driverable_area])
+            if self.remap_mode == "waterline":
+                gt_segmentation_dir = os.path.join(self.dataset_path, self.gt_segmentation_path)
+                _, IoUs, _, _ = compute_mIoU(
+                    gt_segmentation_dir, pred_dir, self.image_ids,
+                    self.num_classes, self.class_name
+                )
+                temp_miou = np.nanmean(IoUs) * 100
+            else:
+                self._save_remapped_miou_pngs(
+                    gt_dir, pred_dir, object_gt_dir, object_pred_dir,
+                    driverable_area_gt_dir, driverable_area_pred_dir
+                )
+                _, object_IoUs, _, _ = compute_mIoU(
+                    object_gt_dir, object_pred_dir, self.image_ids,
+                    len(self.object_class_name), self.object_class_name
+                )
+                _, driverable_area_IoUs, _, _ = compute_mIoU(
+                    driverable_area_gt_dir, driverable_area_pred_dir, self.image_ids,
+                    len(self.driverable_area_class_name), self.driverable_area_class_name
+                )
+                miou_object = np.nanmean(object_IoUs) * 100
+                miou_driverable_area = np.nanmean(driverable_area_IoUs) * 100
+                temp_miou = np.nanmean([miou_object, miou_driverable_area])
 
             self.mious.append(temp_miou)
             self.epoches.append(epoch)
 
             with open(os.path.join(self.log_dir, "epoch_miou.txt"), 'a') as f:
-                f.write("Object segmentation IoU:")
-                f.write('\n')
-                for index in range(len(self.object_class_name)):
-                    f.write(f"{self.object_class_name[index]}: {object_IoUs[index] * 100}")
+                if self.remap_mode == "waterline":
+                    f.write("Waterline segmentation IoU:")
                     f.write('\n')
+                    for index in range(len(self.class_name)):
+                        f.write(f"{self.class_name[index]}: {IoUs[index] * 100}")
+                        f.write('\n')
+                else:
+                    f.write("Object segmentation IoU:")
+                    f.write('\n')
+                    for index in range(len(self.object_class_name)):
+                        f.write(f"{self.object_class_name[index]}: {object_IoUs[index] * 100}")
+                        f.write('\n')
 
-                f.write("Driverable area segmentation IoU:")
-                f.write('\n')
-                for index in range(len(self.driverable_area_class_name)):
-                    f.write(f"{self.driverable_area_class_name[index]}: {driverable_area_IoUs[index] * 100}")
+                    f.write("Driverable area segmentation IoU:")
                     f.write('\n')
-                
-                f.write(f"mIoU Driverable Area: {miou_driverable_area}")
-                f.write('\n')
-                f.write(f"mIoU Object: {miou_object}")
-                f.write('\n')
+                    for index in range(len(self.driverable_area_class_name)):
+                        f.write(f"{self.driverable_area_class_name[index]}: {driverable_area_IoUs[index] * 100}")
+                        f.write('\n')
+                    
+                    f.write(f"mIoU Driverable Area: {miou_driverable_area}")
+                    f.write('\n')
+                    f.write(f"mIoU Object: {miou_object}")
+                    f.write('\n')
 
                 f.write(str(temp_miou))
                 f.write("\n")
